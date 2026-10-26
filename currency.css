@@ -13,3 +13,9 @@
 .utl-wrap.utl-animating { display: inline-block; position: relative; }
 .utl-wrap.utl-animating > .utl-layer { display: inline-block; }
 .utl-wrap.utl-animating > .utl-incoming { position: absolute; left: 0; top: 0; }
+
+/* Prices spread over several elements (e.g. the animated upgrade price): the converted text lives in a hidden
+   child; showing the conversion hides the original children and reveals it. */
+.utl-split > .utl-split-alt { display: none; }
+.utl-split.utl-split-on > :not(.utl-split-alt) { display: none !important; }
+.utl-split.utl-split-on > .utl-split-alt { display: inline-block; }

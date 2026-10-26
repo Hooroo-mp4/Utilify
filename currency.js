@@ -116,6 +116,117 @@
       text = fmt.num.format(value) + (suffix ? " " + currency : "");
     }
     layer.textContent = text;
+    if (wrap._split && wrap._view) fitSplitAlt(wrap);
+  }
+
+  // ---------- prices spread over several elements (e.g. RSI's animated "odometer" upgrade price) ----------
+  // The upgrade price tag is built as <span>$</span><span><span>3</span><span>5</span><span>2</span><small>.00</small></span>
+  // <span>USD</span>: one element per digit, so no single piece of text looks like a price. We don't move or
+  // rewrap any of it (the site's animation holds on to those elements). Instead the container is tagged, a
+  // hidden element with the converted text is added inside it, and showing the conversion hides the original
+  // children and shows that element. The whole container swipes out and back in for the animation.
+  const FULL_RE = /^([$€£])?(\d{1,3}(?:[.,]\d{3})+|\d+)(?:[.,](\d{1,2}))?(?:(USD|EUR|GBP)|([€£]))?$/;
+
+  function bigText(c) { // the element holding the biggest digits, so the converted text can match its look
+    let best = c, bs = 0;
+    c.querySelectorAll("*").forEach((e) => {
+      if (e === c._altL || !/\d/.test(e.textContent)) return;
+      const fs = parseFloat(getComputedStyle(e).fontSize) || 0;
+      if (fs > bs) { bs = fs; best = e; }
+    });
+    return best;
+  }
+
+  function fitSplitAlt(c) {
+    const alt = c._altL;
+    const cs = getComputedStyle(bigText(c));
+    alt.style.cssText = "font-size:" + cs.fontSize + ";font-weight:" + cs.fontWeight + ";font-family:" + cs.fontFamily +
+      ";letter-spacing:" + cs.letterSpacing + ";line-height:" + cs.lineHeight + ";color:" + cs.color + ";white-space:nowrap";
+    const w0 = c._origW || 0; // width the original price took up
+    if (!w0 || !c.classList.contains("utl-split-on")) return;
+    const w1 = alt.getBoundingClientRect().width;
+    if (w1 > w0 * 1.1) alt.style.fontSize = Math.max(parseFloat(cs.fontSize) * 0.55, (parseFloat(cs.fontSize) * w0 * 1.1) / w1) + "px";
+  }
+
+  function swapSplit(c, toAlt, animate) {
+    if (c._view === toAlt) return;
+    c._view = toAlt;
+    if (c._anims) c._anims.forEach((a) => a.cancel());
+    c._anims = null;
+    const seq = (c._seq = (c._seq || 0) + 1);
+    const show = () => {
+      if (toAlt) c._origW = c.getBoundingClientRect().width;
+      c.classList.toggle("utl-split-on", toAlt);
+      if (toAlt) fitSplitAlt(c);
+    };
+    if (!animate || REDUCED_MOTION || !c.animate) { show(); return; }
+    const out = c.animate([{ transform: "translateY(0)", opacity: 1 }, { transform: "translateY(-40%)", opacity: 0 }], { duration: 150, easing: "ease-in" });
+    c._anims = [out];
+    out.finished.then(() => {
+      if (c._seq !== seq) return;
+      show();
+      const inn = c.animate([{ transform: "translateY(40%)", opacity: 0 }, { transform: "translateY(0)", opacity: 1 }], { duration: 190, easing: "cubic-bezier(0.22, 1, 0.36, 1)" });
+      c._anims = [inn];
+      inn.finished.then(() => { if (c._seq === seq) { c._anims = null; inn.cancel(); } }).catch(() => {});
+    }).catch(() => {}); // cancelled by a newer swap
+  }
+
+  function buildSplitWrap(c, m) {
+    const sym = m[1] || m[5] || "", code = m[4] || null;
+    c.classList.add("utl-wrap", "utl-split");
+    c.dataset.amt = String(toAmount(m[2], m[3]));
+    c.dataset.src = code || SYM_TO_CODE[sym] || "USD";
+    c.dataset.sym = sym ? "1" : "0";
+    c.dataset.suffix = code ? "1" : "0";
+    const alt = el("utl-split-alt");
+    alt.setAttribute("aria-hidden", "true");
+    c.appendChild(alt);
+    c._altL = alt; c._usdL = c; c._view = false; c._split = true;
+    const group = [c];
+    group.hover = false;
+    c._group = group;
+    addHoverListeners(c);
+    renderAlt(c);
+    applyGroup(group, false);
+  }
+
+  function refreshSplit(c) { // the site changed the digits (e.g. a different upgrade was picked)
+    let t = "";
+    c.childNodes.forEach((n) => { if (n !== c._altL) t += n.textContent; });
+    const m = FULL_RE.exec(t.replace(/\s+/g, ""));
+    if (!m) return;
+    const sym = m[1] || m[5] || "", code = m[4] || null;
+    c.dataset.amt = String(toAmount(m[2], m[3]));
+    if (sym || code) c.dataset.src = code || SYM_TO_CODE[sym] || "USD";
+    renderAlt(c);
+  }
+
+  function scanSplitPrices(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => {
+        const t = n.nodeValue.trim();
+        return t && t.length <= 3 && (/^[$€£]$/.test(t) || LABEL_RE.test(t)) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      },
+    });
+    const anchors = [];
+    while (walker.nextNode()) anchors.push(walker.currentNode);
+    for (const a of anchors) {
+      if (!a.isConnected || isSkippable(a)) continue;
+      let c = a.parentElement;
+      for (let i = 0; i < 4 && c && c !== document.body; i++, c = c.parentElement) {
+        if (c.classList.contains("utl-wrap") || c.querySelector(".utl-wrap")) break; // already handled
+        const compact = c.textContent.replace(/\s+/g, "");
+        if (compact.length > 26) break;
+        const m = FULL_RE.exec(compact);
+        if (!m || !(m[1] || m[4] || m[5])) continue;
+        let digitNodes = 0; // only when the digits really are spread over several nodes; otherwise the normal passes handle it
+        const tw = document.createTreeWalker(c, NodeFilter.SHOW_TEXT);
+        while (tw.nextNode()) if (/\d/.test(tw.currentNode.nodeValue)) digitNodes++;
+        if (digitNodes < 2) continue;
+        buildSplitWrap(c, m);
+        break;
+      }
+    }
   }
 
   // The separate "USD" label flips to the currency code
@@ -141,6 +252,7 @@
   // size ("hold"). If the new text is clearly wider/narrower (e.g. $99 -> $140) the box glides to the
   // new width instead.
   function swap(wrap, toAud, animate) {
+    if (wrap._split) return swapSplit(wrap, toAud, animate);
     if (wrap._view === toAud) return;
     if (wrap._anims) wrap._anims.forEach((a) => a.cancel());
     const usdL = wrap._usdL, altL = wrap._altL;
@@ -223,6 +335,12 @@
   // .a-priceUnit, which would swallow the mouse. So for those, the whole unit is the hover target.
   const hoverTargets = new WeakSet();
   function addHoverListeners(w) {
+    if (w._split) { // the container itself moves while it animates, so listen on its steady parent
+      const t = w.parentElement || w;
+      t.addEventListener("mouseenter", () => enter(w._group));
+      t.addEventListener("mouseleave", () => leave(w._group));
+      return;
+    }
     const t = w.closest(".a-priceUnit.-before-discount") || w;
     if (hoverTargets.has(t)) return;
     hoverTargets.add(t);
@@ -432,6 +550,7 @@
     for (let i = 0; i < 3 && labelRoot.parentElement && labelRoot.parentElement !== document.body; i++) {
       labelRoot = labelRoot.parentElement;
     }
+    scanSplitPrices(labelRoot);
     scanLabels(labelRoot);
     relinkOrphanLabels(labelRoot);
   }
@@ -464,6 +583,9 @@
   function observe() {
     new MutationObserver((mutations) => {
       for (const mu of mutations) {
+        const tn = mu.target.nodeType === Node.ELEMENT_NODE ? mu.target : mu.target.parentElement;
+        const sp = tn && tn.closest(".utl-split");
+        if (sp) { if (!tn.closest(".utl-split-alt")) refreshSplit(sp); continue; }
         if (mu.type === "characterData") {
           // The site updated a price we've already wrapped (e.g. a total was recalculated)
           const pe = mu.target.parentElement;
