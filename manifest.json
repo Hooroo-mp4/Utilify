@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "RSI Utilify",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "Handy tools for the RSI website: see prices in your own currency and recolour the site with manufacturer themes.",
   "icons": {
     "16": "icons/icon16.png",
@@ -17,7 +17,8 @@
     "https://open.er-api.com/*",
     "https://api.frankfurter.app/*",
     "https://robertsspaceindustries.com/*",
-    "https://cdn.robertsspaceindustries.com/*"
+    "https://cdn.robertsspaceindustries.com/*",
+    "https://api.github.com/*"
   ],
   "background": {
     "service_worker": "background.js"

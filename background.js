@@ -1,5 +1,5 @@
-// Utilify background script.
-// Fetches and caches USD exchange rates (for every currency) and opens the welcome tab.
+// RSI Utilify background script.
+// Fetches and caches USD exchange rates (for every currency), checks GitHub for updates and opens the welcome tab.
 // Content scripts ask us for rates because the page's own CORS rules would block them from calling the API.
 
 const TTL_MS = 60 * 60 * 1000; // treat rates as fresh for 1 hour
@@ -50,7 +50,62 @@ async function fetchImage(url, max) {
   } catch (_) { return { ok: false }; }
 }
 
+// ---------- update check (GitHub releases) ----------
+// On browser start the extension asks GitHub for the latest release of Hooroo-mp4/Utilify. If it's newer than
+// the installed version, a tab opens with the details. Installs from a browser store update themselves, so
+// they're skipped. It can be switched off in the menu ("Check for updates on browser start").
+const REPO = "Hooroo-mp4/Utilify";
+const RELEASE_API = "https://api.github.com/repos/" + REPO + "/releases/latest";
+
+function parseVersion(str) {
+  const m = /(\d+)\.(\d+)\.(\d+)/.exec(str || "");
+  return m ? [+m[1], +m[2], +m[3]] : null;
+}
+function isNewer(a, b) { // is version a newer than version b? (both [major, minor, patch])
+  for (let i = 0; i < 3; i++) { if (a[i] !== b[i]) return a[i] > b[i]; }
+  return false;
+}
+
+async function fetchLatestRelease() {
+  const res = await fetch(RELEASE_API, { headers: { Accept: "application/vnd.github+json" } });
+  if (!res.ok) throw new Error("GitHub answered " + res.status);
+  const j = await res.json();
+  const v = parseVersion(j.tag_name) || parseVersion(j.name);
+  if (!v) throw new Error("couldn't read a version from the release");
+  return {
+    version: v.join("."),
+    name: j.name || j.tag_name,
+    notes: j.body || "",
+    url: j.html_url,
+    published: j.published_at,
+    assets: (j.assets || []).map((a) => ({ name: a.name, url: a.browser_download_url, size: a.size })),
+    zipball: j.zipball_url,
+  };
+}
+
+// manual = true when the person pressed "Check now" (always reports and always opens the details)
+async function checkForUpdates(manual = false) {
+  const s = await chrome.storage.local.get(["updateCheck", "updateSkipped"]);
+  if (!manual) {
+    if (s.updateCheck === false) return { skipped: "off" };
+    try { const self = await chrome.management.getSelf(); if (self.installType === "normal") return { skipped: "store" }; } catch (_) {}
+  }
+  const latest = await fetchLatestRelease();
+  const current = chrome.runtime.getManifest().version;
+  const newer = isNewer(parseVersion(latest.version), parseVersion(current));
+  await chrome.storage.local.set({ updateLast: { at: Date.now(), latest: latest.version } });
+  if (newer && (manual || s.updateSkipped !== latest.version)) {
+    await chrome.storage.local.set({ updateInfo: { ...latest, current } });
+    chrome.tabs.create({ url: chrome.runtime.getURL("update.html") });
+  }
+  return { newer, latest: latest.version, current };
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg && msg.type === "checkUpdates") {
+    checkForUpdates(true).then(sendResponse).catch((e) => sendResponse({ error: String((e && e.message) || e) }));
+    return true;
+  }
   if (msg && msg.type === "getRates") {
     getRates().then((rates) => sendResponse({ rates }));
     return true; // keep the channel open for the async response
@@ -71,6 +126,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 chrome.runtime.onStartup.addListener(() => {
   chrome.alarms.create("refresh-rates", { periodInMinutes: 60 });
+  checkForUpdates().catch(() => {}); // offline or GitHub unavailable: just try again next start
 });
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === "refresh-rates") getRates(true);

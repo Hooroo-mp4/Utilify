@@ -1,0 +1,24 @@
+main { max-width: 640px; margin: 7vh auto 40px; padding: 0 24px; }
+main > .logo, .brand, h1, .versions, .date { text-align: center; }
+.logo { margin: 0 auto; }
+.brand { margin: 12px 0 0; font-size: 13px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+h1 { margin: 6px 0 6px; font-size: 28px; }
+.versions { margin: 0; font-size: 16px; color: var(--text); }
+.versions strong { color: var(--accent); }
+.date { margin: 4px 0 22px; color: var(--muted); font-size: 13px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin: 14px 0; }
+.card h2 { margin: 0 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.notes h3 { margin: 12px 0 4px; font-size: 14px; }
+.notes h3:first-child { margin-top: 0; }
+.notes p { margin: 6px 0; }
+.notes ul { margin: 4px 0 8px; padding-left: 20px; }
+.notes li { margin: 3px 0; }
+.notes a, .card a { color: var(--accent); }
+.card ol { margin: 0; padding-left: 20px; }
+.card li { margin: 4px 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 20px 0 8px; }
+.btn { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 9px 16px; font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: #06222c; border-color: var(--accent); }
+.btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.small { text-align: center; color: var(--muted); font-size: 12.5px; margin: 8px 0; }

@@ -10,7 +10,7 @@
   const VERSION = chrome.runtime.getManifest().version;
   // Bump BUILD whenever the recolouring logic changes. Saved results and saved "leave this image alone"
   // decisions are only trusted for the same VERSION + BUILD, so they can never outlive the code that made them.
-  const BUILD = "3";
+  const BUILD = "4";
   const REV = VERSION + "." + BUILD;
   const HUE_MIN = 185, HUE_MAX = 232, SAT_MIN = 0.1; // what counts as "RSI blue"
   const ACCENT_MIN_SAT = 0.75, ACCENT_MIN_LIGHT = 0.4; // bright + saturated blue = accent, the rest = base
@@ -21,9 +21,24 @@
   // Other tools' interfaces on RSI pages are left exactly as their authors made them. Star Citizen
   // Hangar XPLORer adds its filter buttons, sort/search/pager and the total-spend panel inside these
   // two containers (and reuses RSI's old class names so they look native, which we must not recolour).
-  const PROTECTED_ROOTS = [".js-custom-controls", ".js-bulk-ui"];
-  const PROTECT_NOT = ":not(" + PROTECTED_ROOTS.map((r) => r + "," + r + " *").join(",") + ")";
-  const PROTECTED_SEL = PROTECTED_ROOTS.join(",");
+  const XPLOR_ROOTS = [".js-custom-controls", ".js-bulk-ui"];
+
+  // Organization pages (/orgs/<SID>) belong to the organization: its owners pick their own colours and
+  // background. So by default the org's content (#organization) and background (#post-background) are
+  // left exactly as they are. A menu setting recolours the content too, but an organization page's
+  // background is NEVER recoloured (not its image, not its big background layers, not canvases).
+  const IS_ORG = /^\/(?:[a-z]{2}(?:-[a-z]{2})?\/)?orgs\/[^\/]+/i.test(location.pathname);
+  const ORG_CONTENT_ROOTS = ["#organization", "#post-background"];
+  const ORG_BG_ROOTS = ["#post-background"];
+  let themeOrgs = false; // menu setting: "Recolour organization pages"
+  let protectNot = "", protectedSel = "";
+  function setProtected() {
+    let roots = XPLOR_ROOTS.slice();
+    if (IS_ORG) roots = roots.concat(themeOrgs ? ORG_BG_ROOTS : ORG_CONTENT_ROOTS);
+    protectNot = ":not(" + roots.map((r) => r + "," + r + " *").join(",") + ")";
+    protectedSel = roots.join(",");
+  }
+  setProtected();
   const TRAILING_PSEUDO_RE = /(::?(?:before|after|first-line|first-letter|marker|placeholder|selection|backdrop|-webkit-[\w-]+|-moz-[\w-]+)(?:\([^)]*\))?)$/i;
 
   const INLINE_ATTR = "data-utl-s";       // marks elements whose inline style has blue colours in it
@@ -207,7 +222,7 @@
   function tagInline(el) {
     const st = el.getAttribute && el.getAttribute("style");
     if (!st || (st.indexOf("rgb") < 0 && st.indexOf("#") < 0 && st.indexOf("url(") < 0)) return null;
-    if (el.closest && el.closest(PROTECTED_SEL)) return null; // someone else's UI: leave it alone
+    if (el.closest && el.closest(protectedSel)) return null; // someone else's UI: leave it alone
     const key = hashStr(st);
     if (el.getAttribute(INLINE_ATTR) !== key) el.setAttribute(INLINE_ATTR, key);
     return key;
@@ -239,12 +254,13 @@
     return parts.map((p) => {
       p = p.trim();
       const m = TRAILING_PSEUDO_RE.exec(p);
-      return m ? p.slice(0, m.index) + PROTECT_NOT + m[1] : p + PROTECT_NOT;
+      return m ? p.slice(0, m.index) + protectNot + m[1] : p + protectNot;
     }).join(",");
   }
 
   // ---------- decorative background images ----------
   function imgCandidate(raw, base) {
+    if (IS_ORG) return null; // an organization page's backgrounds are never recoloured
     if (/^data:image\/(png|jpeg|webp|svg\+xml)[;,]/i.test(raw)) return raw.length <= MAX_DATA_URL_BYTES * 1.4 ? raw : null; // small tiles inlined in the CSS
     try {
       const u = new URL(raw, base || location.href);
@@ -515,6 +531,7 @@
 
   function bigBackgroundRules(T) {
     const out = [];
+    if (IS_ORG) return out;
     const sheets = [styleEl, imgStyleEl].filter((e) => e && e.sheet);
     sheets.forEach((e) => { e.sheet.disabled = true; });
     try {
@@ -527,7 +544,7 @@
       }
       const minArea = innerWidth * innerHeight * 0.2;
       for (const el of list) {
-        if (!el || !el.getBoundingClientRect || el.closest(PROTECTED_SEL)) continue;
+        if (!el || !el.getBoundingClientRect || el.closest(protectedSel)) continue;
         const r = el.getBoundingClientRect();
         if (r.width * r.height < minArea) continue;
         const cs = getComputedStyle(el);
@@ -597,14 +614,14 @@
 
     // Animated backgrounds are a <canvas> (we can't change its pixels), so tint it with a filter instead:
     // RSI's own background component, plus any other canvas that covers a big part of the window.
-    document.querySelectorAll("canvas").forEach((cv) => {
-      if (cv.closest(PROTECTED_SEL)) return;
+    if (!IS_ORG) document.querySelectorAll("canvas").forEach((cv) => {
+      if (cv.closest(protectedSel)) return;
       const r = cv.getBoundingClientRect();
       if (r.width * r.height >= innerWidth * innerHeight * 0.4) cv.setAttribute(CANVAS_ATTR, "1");
     });
     const dh = T.base.hue - UTILIFY_BASE_HUE;
     const f = "{filter:hue-rotate(" + dh + "deg) saturate(" + +(T.base.sat * T.vibe).toFixed(3) + ") brightness(" + T.base.lum + ")!important}";
-    chunks.push('[data-rsi-component="BackgroundRiveAnimation"] canvas' + f, "[" + CANVAS_ATTR + "]" + f);
+    if (!IS_ORG) chunks.push('[data-rsi-component="BackgroundRiveAnimation"] canvas' + f, "[" + CANVAS_ATTR + "]" + f);
     return { css: chunks.join("\n"), count };
   }
 
@@ -625,12 +642,16 @@
     imgDone.clear(); imgPending.clear(); renderImgStyle();
   }
 
-  const keyOf = (T) => REV + "|" + JSON.stringify(T);
+  const keyOf = (T) => REV + "|" + JSON.stringify(T) + "|" + (IS_ORG ? (themeOrgs ? "orgOn" : "orgOff") : "std");
+  const CSS_KEY = IS_ORG ? "themeCssOrg" : "themeCss"; // org pages are built differently, so they get their own saved copy
 
   function rebuild() {
     timer = null;
     if (utilifyThemeIsDefault(theme)) { removeStyle(); return; }
     const t0 = performance.now();
+    document.querySelectorAll("[" + INLINE_ATTR + "],[" + BG_ATTR + "],[" + CANVAS_ATTR + "]").forEach((e) => {
+      if (e.closest(protectedSel)) { e.removeAttribute(INLINE_ATTR); e.removeAttribute(BG_ATTR); e.removeAttribute(CANVAS_ATTR); }
+    });
     const { css, count } = build(theme);
     if (count < MIN_RULES_TO_TRUST && injectedFromCache) return; // RSI's CSS isn't here yet: keep the cached theme
     inject(css, count);
@@ -639,7 +660,7 @@
     if (imgPending.size) processPending(); // recolour decorative images; schedule() rebuilds when they're ready
     if (count >= MIN_RULES_TO_TRUST && css !== cachedCss) {
       cachedCss = css;
-      try { chrome.storage.local.set({ themeCss: { key: keyOf(theme), css, inline: [...knownInline] } }); } catch (_) {}
+      try { chrome.storage.local.set({ [CSS_KEY]: { key: keyOf(theme), css, inline: [...knownInline] } }); } catch (_) {}
     }
   }
 
@@ -676,19 +697,21 @@
 
   async function start() {
     let s = {};
-    try { s = await chrome.storage.local.get(["theme", "themeCss", "themeImg", "themeImgSkip"]); } catch (_) {}
+    try { s = await chrome.storage.local.get(["theme", "themeOrgs", CSS_KEY, "themeImg", "themeImgSkip"]); } catch (_) {}
     theme = utilifyNormalizeTheme(s.theme);
+    themeOrgs = !!s.themeOrgs; setProtected();
+    const saved = s[CSS_KEY];
     const sk = s.themeImgSkip;
     if (sk && !Array.isArray(sk) && sk.v === REV && sk.items) { // skip lists from older code are ignored
       Object.entries(sk.items).forEach(([id, info]) => { imgSkip.add(id); skipInfo.set(id, info); imgReport.set(id, { url: info[0], status: "left alone", detail: info[1] }); });
     }
-    if (!utilifyThemeIsDefault(theme) && s.themeCss && s.themeCss.key === keyOf(theme)) {
-      cachedCss = s.themeCss.css;
-      (s.themeCss.inline || []).forEach((k) => knownInline.add(k));
+    if (!utilifyThemeIsDefault(theme) && saved && saved.key === keyOf(theme)) {
+      cachedCss = saved.css;
+      (saved.inline || []).forEach((k) => knownInline.add(k));
       inject(cachedCss);          // themed from the very first paint
       injectedFromCache = true;
     }
-    if (!utilifyThemeIsDefault(theme) && s.themeImg && s.themeImg.key === keyOf(theme)) {
+    if (!IS_ORG && !utilifyThemeIsDefault(theme) && s.themeImg && s.themeImg.key === keyOf(theme)) {
       Object.entries(s.themeImg.items || {}).forEach(([id, d]) => { imgDone.set(id, d); imgReport.set(id, { url: "(remembered from an earlier visit)", status: "recoloured", detail: Math.round(d.length / 1024) + " KB" }); }); // also before first paint
       renderImgStyle();
     }
@@ -698,16 +721,23 @@
     // The popup asks for this to show what happened to each background image on the open page
     chrome.runtime.onMessage.addListener((msg, _sender, send) => {
       if (msg && msg.type === "utilImgReport") {
-        send({ version: VERSION, theme: theme.id, page: location.pathname, items: [...imgReport.values()] });
+        send({
+          version: VERSION, theme: theme.id, page: location.pathname, items: [...imgReport.values()],
+          org: IS_ORG, orgRecolour: themeOrgs, rules: styleEl ? +styleEl.dataset.rules || 0 : 0, ms: styleEl ? +styleEl.dataset.ms || 0 : 0,
+          protectedAreas: protectedSel,
+        });
       }
     });
 
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== "local" || !changes.theme) return;
-      theme = utilifyNormalizeTheme(changes.theme.newValue);
+      if (area !== "local" || !(changes.theme || changes.themeOrgs)) return;
+      if (changes.theme) {
+        theme = utilifyNormalizeTheme(changes.theme.newValue);
+        imgDone.clear(); imgPending.clear(); imgFailed.clear(); imgFetches = 0; imgReport.clear(); renderImgStyle(); // images are recoloured per theme
+      }
+      if (changes.themeOrgs) { themeOrgs = !!changes.themeOrgs.newValue; setProtected(); }
       cachedCss = ""; injectedFromCache = false;
-      imgDone.clear(); imgPending.clear(); imgFailed.clear(); imgFetches = 0; imgReport.clear(); renderImgStyle(); // images are recoloured per theme
-      schedule(0); // popup changed the theme: apply right away
+      schedule(0); // popup changed the theme / setting: apply right away
     });
   }
   start();

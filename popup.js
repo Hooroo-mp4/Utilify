@@ -173,11 +173,26 @@ $("sat").addEventListener("input", () => onSlider("sat"));
 
 // ---------- start ----------
 $("permanent").addEventListener("change", (e) => chrome.storage.local.set({ permanent: e.target.checked }));
+$("orgRecolour").addEventListener("change", (e) => chrome.storage.local.set({ themeOrgs: e.target.checked }));
+$("updateCheck").addEventListener("change", (e) => chrome.storage.local.set({ updateCheck: e.target.checked }));
+
+$("updateNow").addEventListener("click", async () => {
+  const btn = $("updateNow"), out = $("updateStatus");
+  btn.disabled = true; out.textContent = "Checking GitHub…";
+  let res = null;
+  try { res = await chrome.runtime.sendMessage({ type: "checkUpdates" }); } catch (_) {}
+  btn.disabled = false;
+  if (!res || res.error) out.textContent = "Couldn't check (offline, or GitHub is unavailable).";
+  else if (res.newer) out.textContent = "Version " + res.latest + " is available. Details opened in a new tab.";
+  else out.textContent = "You're up to date (" + res.current + ").";
+});
 
 (async function init() {
   buildSwatches();
-  const s = await chrome.storage.local.get(["permanent", "currency", "rates", "updated", "theme"]);
+  const s = await chrome.storage.local.get(["permanent", "currency", "rates", "updated", "theme", "themeOrgs", "updateCheck"]);
   $("permanent").checked = !!s.permanent;
+  $("orgRecolour").checked = !!s.themeOrgs;
+  $("updateCheck").checked = s.updateCheck !== false; // on by default
   state.currency = s.currency || "AUD";
   state.rates = s.rates || null;
   state.updated = s.updated || null;
@@ -210,11 +225,16 @@ async function loadImgReport() {
   if (!tab) return;
   let rep = null;
   try { rep = await chrome.tabs.sendMessage(tab.id, { type: "utilImgReport" }); } catch (_) {}
-  if (!rep || !rep.items || !rep.items.length) return;
+  if (!rep) return;
+  rep.items = rep.items || [];
 
   const count = (st) => rep.items.filter((i) => i.status === st).length;
   const done = count("recoloured"), left = count("left alone"), bad = rep.items.filter((i) => i.status === "failed" || i.status === "not processed").length;
-  $("imgSummary").textContent = "Background images on this page: " + done + " recoloured" + (left ? ", " + left + " left alone" : "") + (bad ? ", " + bad + " couldn't be done" : "");
+  const noImages = rep.org ? "background images are never recoloured on organization pages"
+    : rep.theme === "default" ? "no theme is active (RSI Blue)" : "no background images found";
+  $("imgSummary").textContent = rep.items.length
+    ? "Background images on this page: " + done + " recoloured" + (left ? ", " + left + " left alone" : "") + (bad ? ", " + bad + " couldn't be done" : "")
+    : "Background images on this page: none (" + noImages + ")";
   $("imgSummary").classList.toggle("warn", bad > 0);
   const list = $("imgList");
   list.textContent = "";
@@ -227,9 +247,15 @@ async function loadImgReport() {
   });
   $("imgDetails").hidden = false;
   $("imgCopy").addEventListener("click", async () => {
-    const text = "RSI Utilify " + rep.version + " | theme: " + rep.theme + " | page: " + rep.page + "\n" +
-      rep.items.map((i) => "- " + i.status + ": " + i.url + (i.detail ? " (" + i.detail + ")" : "")).join("\n");
-    try { await navigator.clipboard.writeText(text); $("imgCopy").textContent = "Copied!"; } catch (_) { $("imgCopy").textContent = "Couldn't copy"; }
+    const lines = [
+      "RSI Utilify " + rep.version + " | theme: " + rep.theme + " | page: " + rep.page,
+      "browser: " + navigator.userAgent,
+      "organization page: " + (rep.org ? "yes (recolour organization pages: " + (rep.orgRecolour ? "on" : "off") + ")" : "no") + " | theme rules: " + rep.rules + " | build time: " + rep.ms + " ms",
+      "left untouched: " + (rep.protectedAreas || "(nothing)"),
+      rep.items.length ? "background images:" : "background images: none (" + noImages + ")",
+      ...rep.items.map((i) => "- " + i.status + ": " + i.url + (i.detail ? " (" + i.detail + ")" : "")),
+    ];
+    try { await navigator.clipboard.writeText(lines.join("\n")); $("imgCopy").textContent = "Copied!"; } catch (_) { $("imgCopy").textContent = "Couldn't copy"; }
     setTimeout(() => { $("imgCopy").textContent = "Copy report"; }, 1500);
   });
 }

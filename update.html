@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>RSI Utilify update</title>
+  <link rel="stylesheet" href="ui.css">
+  <link rel="stylesheet" href="update.css">
+</head>
+<body>
+  <main>
+    <img class="logo" src="icons/icon128.png" alt="RSI Utilify logo" width="72" height="72">
+    <p class="brand">RSI Utilify</p>
+    <h1 id="title">An update is available</h1>
+    <p class="versions" id="versions"></p>
+    <p class="date" id="date"></p>
+
+    <section class="card">
+      <h2>What's new</h2>
+      <div id="notes" class="notes"></div>
+    </section>
+
+    <section class="card">
+      <h2>How to update</h2>
+      <ol>
+        <li>Download the new version with the button below and unzip it.</li>
+        <li>Copy the new files over the folder you loaded RSI Utilify from (replace the old ones).</li>
+        <li>Open your browser's extensions page and press the <strong>reload</strong> icon on RSI Utilify.</li>
+        <li>Refresh any open RSI tabs.</li>
+      </ol>
+    </section>
+
+    <div class="actions">
+      <a class="btn primary" id="download" target="_blank" rel="noopener noreferrer">Download</a>
+      <a class="btn" id="release" target="_blank" rel="noopener noreferrer">View on GitHub</a>
+      <button class="btn" id="skip" type="button">Skip this version</button>
+    </div>
+    <p class="small" id="skipNote"></p>
+    <p class="small">RSI Utilify checks GitHub for updates when your browser starts. You can switch this off in the extension menu.</p>
+  </main>
+  <script src="update.js"></script>
+</body>
+</html>

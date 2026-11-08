@@ -15,7 +15,10 @@
     </div>
     <div class="refer">
       <span class="referText">Help me out by referring a friend using my link</span>
-      <a class="referBtn" href="https://hooroo.net/rsi" target="_blank" rel="noopener noreferrer">Refer</a>
+      <span class="referBtns">
+        <a class="referBtn" href="https://hooroo.net/rsi" target="_blank" rel="noopener noreferrer">Refer</a>
+        <a class="referBtn kofi" href="https://ko-fi.com/hooroo" target="_blank" rel="noopener noreferrer">☕ Ko-fi</a>
+      </span>
     </div>
   </header>
 
@@ -68,11 +71,39 @@
       </label>
     </div>
     <div class="hint">Themes are based on in-game manufacturers. They recolour RSI's blues and apply instantly to open RSI tabs.</div>
+
+    <label class="row orgRow" for="orgRecolour">
+      <span>
+        <span class="label">Recolour organization pages</span>
+        <span class="desc">Organizations pick their own colours, so their pages are left alone by default. Turn this on to recolour them too. Their backgrounds are never changed.</span>
+      </span>
+      <span class="switch">
+        <input type="checkbox" id="orgRecolour">
+        <span class="slider"></span>
+      </span>
+    </label>
+
     <details class="imgReport" id="imgDetails" hidden>
       <summary id="imgSummary">Background images</summary>
+      <div class="imgHelp">Reporting a theme bug? Press <strong>Copy report</strong> and paste it into your bug report.</div>
       <ul id="imgList"></ul>
       <button type="button" id="imgCopy">Copy report</button>
     </details>
+  </section>
+
+  <section>
+    <h2>Updates</h2>
+    <label class="row" for="updateCheck">
+      <span>
+        <span class="label">Check for updates on browser start</span>
+        <span class="desc">Looks at GitHub for a newer release and opens a tab with the details. Installs from a browser store update themselves, so they're skipped.</span>
+      </span>
+      <span class="switch">
+        <input type="checkbox" id="updateCheck">
+        <span class="slider"></span>
+      </span>
+    </label>
+    <div class="updateRow"><button type="button" id="updateNow">Check now</button><span id="updateStatus"></span></div>
   </section>
 
   <footer>
