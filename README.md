@@ -48,6 +48,11 @@ Say which currency RSI is set to (USD, EUR or GBP), which currency you picked in
 ### Organization pages
 Organizations choose their own colours and background, so pages under `/orgs/<name>` are **left alone by default**. The **Recolour organization pages** setting recolours the organization's content too. An organization's **background is never changed**, even with the setting on.
 
+### Pause product image slideshows
+The image galleries on store product pages (ships, packages, paints) slide by themselves every few seconds. RSI Utilify adds a small **Pause** button to the top-right corner of every slideshow that does this. Press it to stop the sliding and it becomes **Play**. You can still click the thumbnails or arrows to look through the pictures yourself.
+
+Your choice is remembered: once paused, every product page opens with its slideshow paused until you press **Play** (on any slideshow or in the menu). The same setting is in the menu as **Pause image slideshows**.
+
 ### Star Citizen Hangar XPLORer
 Works alongside **Star Citizen Hangar XPLORer**: its total spend converts on hover, and its own interface (filters, sort, search, pager and the total panel with the CSV/JSON buttons) is **never recoloured**.
 
@@ -152,6 +157,7 @@ Click the **RSI Utilify icon** in your browser toolbar. If you can't see it, ope
 | **Website theme** | Pick a manufacturer (hover a swatch to see its name; each swatch shows the theme's background and accent colour), or drag **Base colour** / **Accent colour** / **Colourfulness**. The first swatch (RSI blue) switches theming off. |
 | **Recolour organization pages** | Off by default. When on, organization pages (`/orgs/<name>`) are recoloured too. Their backgrounds are never changed. |
 | **Background images on this page** | A report of what happened to each background image on the open RSI page. Use **Copy report** for [theme bug reports](#reporting-a-bug-read-this-first). |
+| **Pause image slideshows** | Off by default. Stops product image galleries from sliding on their own (same as the **Pause** / **Play** button on each slideshow). |
 | **Check for updates on browser start** | On by default. See [Updating](#updating). |
 | **Check now** | Checks GitHub for a newer release immediately. |
 
@@ -195,6 +201,7 @@ From there you can switch it off or on, or remove it.
 | **An organization page isn't themed** | That's deliberate. Turn on **Recolour organization pages** in the menu. Their backgrounds are never changed. |
 | **Theme doesn't change everything** | RSI Utilify recolours RSI's blue palette and blue background images, so photos, ship images, videos and a few older pages with their own styling stay as they are. |
 | **Page flashes blue for a moment after changing theme** | Only the very first load after picking a new theme. It's remembered after that. |
+| **I don't see the Pause button on a slideshow** | It only appears on slideshows that slide by themselves, and needs Chrome/Opera/Edge/Brave version 111 or newer. Refresh the page once after installing or updating. |
 | **Opera shows a warning about developer-mode extensions** | This is normal for extensions loaded manually. |
 | **A price isn't converting** | [Open an issue](https://github.com/Hooroo-mp4/Utilify/issues) with a screenshot and the page link. |
 
@@ -215,6 +222,7 @@ Nothing about you or the pages you visit is sent anywhere. See [PRIVACY.md](PRIV
 - `currency.js` finds price text (such as `$49.50 USD`, `€45,55`, `686.40 USD`, or digits split over several elements), wraps it in a two-layer element and pairs it with a separate currency label. `currency.css` handles the slide animation.
 - `theme.js` reads RSI's own stylesheets (and inline styles), finds every blue colour and writes override rules for the chosen theme, treating the dark base blues and the bright accent blue separately. It also recolours RSI's decorative background images on your device and reads what the page's big background layers actually paint. Hangar XPLORer's interface and (by default) organization pages are excluded. `themes.js` holds the manufacturer presets.
 - `background.js` fetches USD exchange rates for every currency, caches them for an hour, downloads background images for the theme engine and runs the update check.
+- `slideshow.js` adds the Pause / Play button and remembers your choice; `slideshow-main.js` is a tiny script that runs in the page itself (the slideshows are Swiper carousels that only the page can reach) and pauses or resumes their autoplay. It only ever touches slideshows that were already playing by themselves.
 - `popup.html` / `popup.js` is the menu, `welcome.html` the tab shown after install/update, `update.html` the tab shown when a newer version exists.
 
 ## Support the developer

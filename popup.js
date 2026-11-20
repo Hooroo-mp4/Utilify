@@ -174,6 +174,7 @@ $("sat").addEventListener("input", () => onSlider("sat"));
 // ---------- start ----------
 $("permanent").addEventListener("change", (e) => chrome.storage.local.set({ permanent: e.target.checked }));
 $("orgRecolour").addEventListener("change", (e) => chrome.storage.local.set({ themeOrgs: e.target.checked }));
+$("slideshowPaused").addEventListener("change", (e) => chrome.storage.local.set({ slideshowPaused: e.target.checked }));
 $("updateCheck").addEventListener("change", (e) => chrome.storage.local.set({ updateCheck: e.target.checked }));
 
 $("updateNow").addEventListener("click", async () => {
@@ -189,9 +190,10 @@ $("updateNow").addEventListener("click", async () => {
 
 (async function init() {
   buildSwatches();
-  const s = await chrome.storage.local.get(["permanent", "currency", "rates", "updated", "theme", "themeOrgs", "updateCheck"]);
+  const s = await chrome.storage.local.get(["permanent", "currency", "rates", "updated", "theme", "themeOrgs", "updateCheck", "slideshowPaused"]);
   $("permanent").checked = !!s.permanent;
   $("orgRecolour").checked = !!s.themeOrgs;
+  $("slideshowPaused").checked = !!s.slideshowPaused;
   $("updateCheck").checked = s.updateCheck !== false; // on by default
   state.currency = s.currency || "AUD";
   state.rates = s.rates || null;

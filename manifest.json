@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "RSI Utilify",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "description": "Handy tools for the RSI website: see prices in your own currency and recolour the site with manufacturer themes.",
   "icons": {
     "16": "icons/icon16.png",
@@ -45,6 +45,28 @@
         "currency.css"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://robertsspaceindustries.com/*"
+      ],
+      "js": [
+        "slideshow-main.js"
+      ],
+      "run_at": "document_idle",
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://robertsspaceindustries.com/*"
+      ],
+      "js": [
+        "slideshow.js"
+      ],
+      "css": [
+        "slideshow.css"
+      ],
+      "run_at": "document_idle"
     }
   ],
   "action": {
@@ -56,5 +78,6 @@
       "128": "icons/icon128.png"
     }
   },
-  "homepage_url": "https://github.com/Hooroo-mp4/Utilify"
+  "homepage_url": "https://github.com/Hooroo-mp4/Utilify",
+  "minimum_chrome_version": "111"
 }
