@@ -10,7 +10,7 @@
   const VERSION = chrome.runtime.getManifest().version;
   // Bump BUILD whenever the recolouring logic changes. Saved results and saved "leave this image alone"
   // decisions are only trusted for the same VERSION + BUILD, so they can never outlive the code that made them.
-  const BUILD = "4";
+  const BUILD = "5";
   const REV = VERSION + "." + BUILD;
   const HUE_MIN = 185, HUE_MAX = 232, SAT_MIN = 0.1; // what counts as "RSI blue"
   const ACCENT_MIN_SAT = 0.75, ACCENT_MIN_LIGHT = 0.4; // bright + saturated blue = accent, the rest = base
@@ -509,7 +509,7 @@
         progressed = true;
       }
     } finally { imgWorking = false; }
-    if (progressed) { renderImgStyle(); if (verifyImgVars()) renderImgStyle(); persistImgs(); schedule(0); }
+    if (progressed) { renderImgStyle(); if (verifyImgVars()) renderImgStyle(); persistImgs(); schedule(0, true); }
   }
 
   // ---------- big background layers, read from the page itself ----------
@@ -612,16 +612,12 @@
 
     bigBackgroundRules(T).forEach((rule) => { count++; chunks.push(rule); });
 
-    // Animated backgrounds are a <canvas> (we can't change its pixels), so tint it with a filter instead:
-    // RSI's own background component, plus any other canvas that covers a big part of the window.
-    if (!IS_ORG) document.querySelectorAll("canvas").forEach((cv) => {
-      if (cv.closest(protectedSel)) return;
-      const r = cv.getBoundingClientRect();
-      if (r.width * r.height >= innerWidth * innerHeight * 0.4) cv.setAttribute(CANVAS_ATTR, "1");
-    });
+    // RSI's animated background is a <canvas> (we can't change its pixels), so it's tinted with a filter.
+    // Only that component: other big canvases (like the 3D ship viewer) are content, not decoration, and a
+    // filter on them costs drawing time on every frame.
     const dh = T.base.hue - UTILIFY_BASE_HUE;
     const f = "{filter:hue-rotate(" + dh + "deg) saturate(" + +(T.base.sat * T.vibe).toFixed(3) + ") brightness(" + T.base.lum + ")!important}";
-    if (!IS_ORG) chunks.push('[data-rsi-component="BackgroundRiveAnimation"] canvas' + f, "[" + CANVAS_ATTR + "]" + f);
+    if (!IS_ORG) chunks.push('[data-rsi-component="BackgroundRiveAnimation"] canvas' + f);
     return { css: chunks.join("\n"), count };
   }
 
@@ -645,9 +641,29 @@
   const keyOf = (T) => REV + "|" + JSON.stringify(T) + "|" + (IS_ORG ? (themeOrgs ? "orgOn" : "orgOff") : "std");
   const CSS_KEY = IS_ORG ? "themeCssOrg" : "themeCss"; // org pages are built differently, so they get their own saved copy
 
+  // A cheap fingerprint of RSI's stylesheets. A rebuild re-reads every stylesheet and recalculates the page's
+  // styles (100+ ms), so it's skipped when nothing that matters has changed.
+  function sheetSignature() {
+    let sig = "";
+    const sheets = document.styleSheets;
+    for (let i = 0; i < sheets.length; i++) {
+      const sh = sheets[i];
+      if (!isRsiSheet(sh)) continue;
+      let n = "x";
+      try { n = sh.cssRules.length; } catch (_) {}
+      sig += (sh.href || (sh.ownerNode && sh.ownerNode.id) || i) + ":" + n + "|";
+    }
+    return sig;
+  }
+  let lastSig = "", forceNext = true;
+
   function rebuild() {
     timer = null;
-    if (utilifyThemeIsDefault(theme)) { removeStyle(); return; }
+    if (utilifyThemeIsDefault(theme)) { removeStyle(); lastSig = ""; return; }
+    const sig = sheetSignature();
+    if (!forceNext && sig === lastSig && styleEl && styleEl.isConnected) return; // nothing changed: skip the expensive part
+    forceNext = false;
+    lastSig = sig;
     const t0 = performance.now();
     document.querySelectorAll("[" + INLINE_ATTR + "],[" + BG_ATTR + "],[" + CANVAS_ATTR + "]").forEach((e) => {
       if (e.closest(protectedSel)) { e.removeAttribute(INLINE_ATTR); e.removeAttribute(BG_ATTR); e.removeAttribute(CANVAS_ATTR); }
@@ -664,14 +680,30 @@
     }
   }
 
-  function schedule(delay) {
+  // Rebuilds wait until you've stopped scrolling and the browser is idle, so they never freeze a scroll
+  let lastScroll = 0;
+  addEventListener("scroll", () => { lastScroll = performance.now(); }, { passive: true, capture: true });
+  addEventListener("wheel", () => { lastScroll = performance.now(); }, { passive: true, capture: true });
+  addEventListener("touchmove", () => { lastScroll = performance.now(); }, { passive: true, capture: true });
+  function runWhenCalm() {
+    timer = null;
+    const since = performance.now() - lastScroll;
+    if (since < 400) { timer = setTimeout(runWhenCalm, 420 - since); return; }
+    if (typeof requestIdleCallback === "function") requestIdleCallback(rebuild, { timeout: 800 });
+    else rebuild();
+  }
+  function schedule(delay, force) {
+    if (force) forceNext = true;
     if (timer) clearTimeout(timer);
-    timer = setTimeout(rebuild, delay);
+    timer = setTimeout(runWhenCalm, delay);
   }
 
   // RSI injects its stylesheets as the app starts up, so rebuild whenever new ones appear
   function watchStylesheets() {
-    const isSheet = (n) => n.nodeType === 1 && (n.nodeName === "STYLE" || (n.nodeName === "LINK" && /stylesheet/i.test(n.rel))) && n.id !== STYLE_ID;
+    // Only stylesheets with colours or images in them can affect the theme
+    const hasColour = (el) => /#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(|url\(/i.test(el.textContent || "");
+    const isSheet = (n) => n.nodeType === 1 && n.id !== STYLE_ID && n.id !== IMG_STYLE_ID &&
+      ((n.nodeName === "STYLE" && hasColour(n)) || (n.nodeName === "LINK" && /stylesheet/i.test(n.rel)));
     // Tag new elements straight away (so cached rules apply before the next paint); rebuild if one is new to us
     const tagTree = (n) => {
       if (n.nodeType !== 1) return false;
@@ -685,12 +717,12 @@
       if (utilifyThemeIsDefault(theme)) return;
       let rebuildNeeded = false;
       for (const m of muts) {
-        if (m.target.nodeName === "STYLE" && m.target.id !== STYLE_ID) rebuildNeeded = true;
+        if (m.target.nodeName === "STYLE" && m.target.id !== STYLE_ID && hasColour(m.target)) rebuildNeeded = true; // e.g. RSI's sticky bar rewrites a tiny <style> while you scroll: ignored
         for (const n of m.addedNodes) { if (isSheet(n)) rebuildNeeded = true; else if (tagTree(n)) rebuildNeeded = true; }
       }
-      if (rebuildNeeded) schedule(250);
+      if (rebuildNeeded) schedule(250, true);
     }).observe(document.documentElement, { childList: true, subtree: true });
-    document.addEventListener("load", (e) => { if (e.target && e.target.nodeName === "LINK") schedule(150); }, true);
+    document.addEventListener("load", (e) => { if (e.target && e.target.nodeName === "LINK") schedule(150, true); }, true);
     document.addEventListener("DOMContentLoaded", () => schedule(100));
     window.addEventListener("load", () => schedule(300));
   }
@@ -737,7 +769,7 @@
       }
       if (changes.themeOrgs) { themeOrgs = !!changes.themeOrgs.newValue; setProtected(); }
       cachedCss = ""; injectedFromCache = false;
-      schedule(0); // popup changed the theme / setting: apply right away
+      schedule(0, true); // popup changed the theme / setting: apply right away
     });
   }
   start();

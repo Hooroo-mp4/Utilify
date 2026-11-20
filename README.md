@@ -41,15 +41,15 @@ Say which currency RSI is set to (USD, EUR or GBP), which currency you picked in
 
 ### Website themes
 - 18 themes based on in-game manufacturers (Aegis, Anvil, Aopoa, Argo, Banu, Consolidated Outland, Crusader, Drake, Esperia, Gatac, Grey's Market, Greycat, Kruger, Mirai, MISC, Origin, Tumbril) plus the normal RSI blue. Each recolours RSI's dark backgrounds and its bright accent (buttons, links) separately. Or make your own with the **Base colour**, **Accent colour** and **Colourfulness** sliders.
-- **What changes:** RSI's blues, including colours set inline, blue background images (recoloured pixel by pixel, SVGs as text) and big animated backgrounds (tinted with a matching filter).
-- **What doesn't:** sale prices, errors and the orange checkout buttons keep their colours. Photos, ship images and videos are never changed. MISC, Origin and Tumbril are really light brands, so they appear as lighter steel, silver and tan on RSI's dark site.
+- **What changes:** RSI's blues, including colours set inline, blue background images (recoloured pixel by pixel, SVGs as text) and RSI's animated background (tinted with a matching filter).
+- **What doesn't:** sale prices, errors and the orange checkout buttons keep their colours. Photos, ship images, videos and the 3D ship viewer are never changed. MISC, Origin and Tumbril are really light brands, so they appear as lighter steel, silver and tan on RSI's dark site.
 - Changes apply instantly to every open RSI tab, and your theme is remembered so pages load already themed.
 
 ### Organization pages
 Organizations choose their own colours and background, so pages under `/orgs/<name>` are **left alone by default**. The **Recolour organization pages** setting recolours the organization's content too. An organization's **background is never changed**, even with the setting on.
 
 ### Pause product image slideshows
-The image galleries on store product pages (ships, packages, paints) slide by themselves every few seconds. RSI Utilify adds a small **Pause** button to the top-right corner of every slideshow that does this. Press it to stop the sliding and it becomes **Play**. You can still click the thumbnails or arrows to look through the pictures yourself.
+The image galleries on store product pages (ships, packages, paints: any page under `/pledge/…`) slide by themselves every few seconds. RSI Utilify adds a small **Pause** button to the top-right corner of every slideshow that does this. The main Pledge Store page (`/pledge` itself) is left alone, because its slideshow needs to cycle. Press it to stop the sliding and it becomes **Play**. You can still click the thumbnails or arrows to look through the pictures yourself.
 
 Your choice is remembered: once paused, every product page opens with its slideshow paused until you press **Play** (on any slideshow or in the menu). The same setting is in the menu as **Pause image slideshows**.
 
@@ -157,7 +157,7 @@ Click the **RSI Utilify icon** in your browser toolbar. If you can't see it, ope
 | **Website theme** | Pick a manufacturer (hover a swatch to see its name; each swatch shows the theme's background and accent colour), or drag **Base colour** / **Accent colour** / **Colourfulness**. The first swatch (RSI blue) switches theming off. |
 | **Recolour organization pages** | Off by default. When on, organization pages (`/orgs/<name>`) are recoloured too. Their backgrounds are never changed. |
 | **Background images on this page** | A report of what happened to each background image on the open RSI page. Use **Copy report** for [theme bug reports](#reporting-a-bug-read-this-first). |
-| **Pause image slideshows** | Off by default. Stops product image galleries from sliding on their own (same as the **Pause** / **Play** button on each slideshow). |
+| **Pause image slideshows** | Off by default. Stops the image galleries on product pages (`/pledge/…`) from sliding on their own (same as the **Pause** / **Play** button on each slideshow). The main Pledge Store page keeps cycling. |
 | **Check for updates on browser start** | On by default. See [Updating](#updating). |
 | **Check now** | Checks GitHub for a newer release immediately. |
 
@@ -200,8 +200,10 @@ From there you can switch it off or on, or remove it.
 | **A background is still blue** | Follow the [theme bug steps](#if-its-a-theme-bug-wrong-colours-a-background-that-stays-blue-something-broken-after-recolouring) and attach the copied report. The first visit to a page with a very large background can take a few seconds to recolour; after that it's remembered. |
 | **An organization page isn't themed** | That's deliberate. Turn on **Recolour organization pages** in the menu. Their backgrounds are never changed. |
 | **Theme doesn't change everything** | RSI Utilify recolours RSI's blue palette and blue background images, so photos, ship images, videos and a few older pages with their own styling stay as they are. |
+| **Scrolling feels slow on a page** | Make sure you're on the latest version (0.5.7 fixed a theme rebuild that ran while scrolling). Some RSI pages (especially product pages with the 3D ship viewer) stutter a little on their own, even without the extension. If it's clearly worse with RSI Utilify on, [open an issue](https://github.com/Hooroo-mp4/Utilify/issues) with the page link and the copied theme report. |
 | **Page flashes blue for a moment after changing theme** | Only the very first load after picking a new theme. It's remembered after that. |
-| **I don't see the Pause button on a slideshow** | It only appears on slideshows that slide by themselves, and needs Chrome/Opera/Edge/Brave version 111 or newer. Refresh the page once after installing or updating. |
+| **I don't see the Pause button on a slideshow** | It only appears on product pages (`/pledge/…`, not the main Pledge Store page) on slideshows that slide by themselves, and needs Chrome/Opera/Edge/Brave version 111 or newer. Refresh the page once after installing or updating. |
+| **The button says it can't pause a slideshow** | That slideshow keeps restarting itself. Rather than fight it (which would make the page laggy), RSI Utilify leaves it playing. |
 | **Opera shows a warning about developer-mode extensions** | This is normal for extensions loaded manually. |
 | **A price isn't converting** | [Open an issue](https://github.com/Hooroo-mp4/Utilify/issues) with a screenshot and the page link. |
 
@@ -222,7 +224,7 @@ Nothing about you or the pages you visit is sent anywhere. See [PRIVACY.md](PRIV
 - `currency.js` finds price text (such as `$49.50 USD`, `€45,55`, `686.40 USD`, or digits split over several elements), wraps it in a two-layer element and pairs it with a separate currency label. `currency.css` handles the slide animation.
 - `theme.js` reads RSI's own stylesheets (and inline styles), finds every blue colour and writes override rules for the chosen theme, treating the dark base blues and the bright accent blue separately. It also recolours RSI's decorative background images on your device and reads what the page's big background layers actually paint. Hangar XPLORer's interface and (by default) organization pages are excluded. `themes.js` holds the manufacturer presets.
 - `background.js` fetches USD exchange rates for every currency, caches them for an hour, downloads background images for the theme engine and runs the update check.
-- `slideshow.js` adds the Pause / Play button and remembers your choice; `slideshow-main.js` is a tiny script that runs in the page itself (the slideshows are Swiper carousels that only the page can reach) and pauses or resumes their autoplay. It only ever touches slideshows that were already playing by themselves.
+- `slideshow.js` adds the Pause / Play button and remembers your choice; `slideshow-main.js` is a tiny script that runs in the page itself (the slideshows are Swiper carousels that only the page can reach) and pauses or resumes their autoplay, on product pages only. It only ever touches slideshows that were already playing by themselves, and backs off if a slideshow keeps restarting itself.
 - `popup.html` / `popup.js` is the menu, `welcome.html` the tab shown after install/update, `update.html` the tab shown when a newer version exists.
 
 ## Support the developer
